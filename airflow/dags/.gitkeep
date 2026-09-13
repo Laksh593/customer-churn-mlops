@@ -1,0 +1,10 @@
+# airflow/dags/
+#
+# Purpose: Apache Airflow DAG definitions for orchestrating the ML pipeline.
+#
+# DAGs that will be added in Milestone 10:
+#   - churn_training_dag.py   — end-to-end training pipeline
+#   - churn_retraining_dag.py — scheduled retraining on drift signal
+#
+# Requirements: Apache Airflow is NOT installed in the base environment.
+# It will be added as a separate Docker service in Milestone 9.

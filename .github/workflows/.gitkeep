@@ -1,0 +1,13 @@
+# .github/workflows/ci.yml
+#
+# Purpose: GitHub Actions CI pipeline.
+#
+# Will be implemented in Milestone 13 with:
+#   - Checkout
+#   - Python setup (3.11)
+#   - pip install -r requirements.txt
+#   - ruff check .
+#   - black --check .
+#   - pytest tests/unit
+#
+# Placeholder only — do not add actual workflow steps yet.

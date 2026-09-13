@@ -1,0 +1,9 @@
+# docker/
+#
+# Purpose: Dockerfiles for each service in the platform.
+#
+# Files that will be added in Milestone 9:
+#   - Dockerfile.api          — FastAPI inference service image
+#   - Dockerfile.training     — Training pipeline image
+#   - docker-compose.yml      — Full local stack (API, DB, MLflow, Airflow,
+#                               Prometheus, Grafana)

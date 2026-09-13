@@ -1,0 +1,10 @@
+# monitoring/
+#
+# Purpose: Configuration files for Prometheus and Grafana.
+#
+# Files that will be added in Milestone 11:
+#   - prometheus.yml          — scrape configs
+#   - grafana/                — dashboard JSON exports and datasource configs
+#
+# These services run as Docker containers defined in docker-compose.yml
+# (added in Milestone 9).

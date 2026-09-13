@@ -1,0 +1,12 @@
+# configs/
+#
+# Purpose: Runtime configuration files (YAML, JSON, TOML) for different
+# environments (development, staging, production).
+#
+# Example files that will be added in later milestones:
+#   - model_config.yaml       — hyperparameter defaults for training
+#   - feature_config.yaml     — feature names, types, and encoding rules
+#   - monitoring_config.yaml  — drift detection thresholds
+#
+# All sensitive values (passwords, API keys) belong in environment variables
+# or a secrets manager, NOT in this directory.
