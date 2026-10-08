@@ -181,7 +181,7 @@ def check_target_column(df: pd.DataFrame) -> ValidationResult:
             passed=False,
             message=f"Target column '{TARGET_COL}' is missing.",
         )
-    valid_values = set(TARGET_ENCODING.keys())
+    valid_values = set(TARGET_ENCODING.keys()) | set(TARGET_ENCODING.values())
     actual_values = set(df[TARGET_COL].dropna().unique())
     unexpected = actual_values - valid_values
     n_null = int(df[TARGET_COL].isnull().sum())
@@ -295,6 +295,9 @@ def check_categorical_values(df: pd.DataFrame) -> ValidationResult:
         if col not in df.columns:
             continue
         actual = set(df[col].dropna().unique())
+        # If target column was encoded to integers (0, 1), check against encoded values
+        if col == TARGET_COL and actual.issubset(set(TARGET_ENCODING.values())):
+            continue
         unexpected = actual - valid
         if unexpected:
             issues[col] = {"unexpected": list(unexpected)}
