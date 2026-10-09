@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environment & caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing & quality caches
+tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Raw & processed large data files
+data/raw/
+data/processed/
+
+# MLflow run logs (only mlflow.db and mlartifacts are needed)
+mlruns/
+
+# Development scratch scripts and notes
+scratch/
+*.md
+!README.md
