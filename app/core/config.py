@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # ── Model ────────────────────────────────────────────────────────────────
     model_name: str = "churn-predictor"
-    model_version: str = "latest"
+    model_version: str = "1"
 
     # ── API ───────────────────────────────────────────────────────────────────
     api_host: str = "0.0.0.0"
