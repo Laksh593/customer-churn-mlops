@@ -512,3 +512,130 @@ class TestMLflowTracking:
         assert isinstance(loaded_pipeline, Pipeline)
         assert "preprocessor" in loaded_pipeline.named_steps
         assert "model" in loaded_pipeline.named_steps
+
+
+def test_import_training_module_does_not_mutate_root_handlers() -> None:
+    """Verify that importing or reloading src.training.train does not attach handlers to root logger."""
+    import importlib
+    import logging
+
+    import src.training.train as train_mod
+
+    root = logging.getLogger()
+    original_handlers = list(root.handlers)
+
+    importlib.reload(train_mod)
+
+    assert root.handlers == original_handlers
+
+
+def test_setup_mlflow_restores_fileconfig_and_cleans_handlers_on_failure() -> None:
+    """Verify that if MlflowClient adds a handler and raises an exception:
+    1. logging.config.fileConfig is restored to its original function.
+    2. Newly added root handlers are removed.
+    3. Pre-existing root logger handlers remain attached.
+    4. The original exception propagates to the caller without being swallowed.
+    """
+    import logging.config
+    from unittest.mock import patch
+
+    import pytest
+
+    from src.training.train import setup_mlflow
+
+    root = logging.getLogger()
+    original_file_config = getattr(logging.config, "fileConfig", None)
+    pre_existing_handler = logging.NullHandler()
+    root.addHandler(pre_existing_handler)
+    leaked_handler = logging.StreamHandler()
+
+    def failing_client_init(*args, **kwargs):
+        # Simulate a handler leaked right before a failure occurs
+        root.addHandler(leaked_handler)
+        raise ConnectionError("Failed to connect to tracking store")
+
+    try:
+        with patch(
+            "src.training.train.MlflowClient",
+            side_effect=failing_client_init,
+        ):
+            with pytest.raises(
+                ConnectionError,
+                match="Failed to connect to tracking store",
+            ):
+                setup_mlflow(
+                    {
+                        "tracking_uri": "sqlite:///fake_test.db",
+                        "experiment_name": "test-exp",
+                    }
+                )
+
+        # 1. fileConfig is restored on failure
+        assert logging.config.fileConfig is original_file_config
+        # 2. Leaked handler was removed on failure
+        assert leaked_handler not in root.handlers
+        # 3. Pre-existing handler remains attached
+        assert pre_existing_handler in root.handlers
+    finally:
+        if original_file_config is not None:
+            logging.config.fileConfig = original_file_config
+        root.removeHandler(pre_existing_handler)
+        root.removeHandler(leaked_handler)
+
+
+def test_setup_mlflow_cleans_up_new_handlers_and_preserves_existing() -> None:
+    """Verify that during successful setup_mlflow initialization:
+    1. Pre-existing root handlers remain attached.
+    2. Any root handlers introduced during MlflowClient init are removed.
+    3. logging.config.fileConfig is restored to original function.
+    """
+    import logging.config
+    from unittest.mock import MagicMock, patch
+
+    from src.training.train import setup_mlflow
+
+    root = logging.getLogger()
+    original_file_config = getattr(logging.config, "fileConfig", None)
+    pre_existing_handler = logging.NullHandler()
+    root.addHandler(pre_existing_handler)
+    leaked_handler = logging.StreamHandler()
+
+    mock_client = MagicMock()
+    mock_exp = MagicMock()
+    mock_exp.experiment_id = "exp-12345"
+    mock_client.get_experiment_by_name.return_value = mock_exp
+
+    def mock_client_init(*args, **kwargs):
+        # Simulate Alembic migration attaching a console handler to root
+        root.addHandler(leaked_handler)
+        return mock_client
+
+    try:
+        with (
+            patch(
+                "src.training.train.MlflowClient",
+                side_effect=mock_client_init,
+            ),
+            patch("mlflow.set_tracking_uri"),
+            patch("mlflow.set_experiment"),
+        ):
+            exp_id = setup_mlflow(
+                {
+                    "tracking_uri": "sqlite:///fake_test.db",
+                    "experiment_name": "test-exp",
+                }
+            )
+
+            assert exp_id == "exp-12345"
+
+        # 1. Pre-existing handler is preserved
+        assert pre_existing_handler in root.handlers
+        # 2. Leaked handler was cleaned up
+        assert leaked_handler not in root.handlers
+        # 3. fileConfig was restored
+        assert logging.config.fileConfig is original_file_config
+    finally:
+        if original_file_config is not None:
+            logging.config.fileConfig = original_file_config
+        root.removeHandler(pre_existing_handler)
+        root.removeHandler(leaked_handler)

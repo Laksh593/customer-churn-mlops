@@ -43,10 +43,6 @@ from src.data.validation import validate_raw
 from src.training.evaluation import EvaluationResult, compare_models, evaluate_model
 from src.training.models import create_model_pipelines
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH: Path = (
@@ -140,7 +136,25 @@ def setup_mlflow(mlflow_config: dict[str, Any]) -> str:
                 db_path.parent.mkdir(parents=True, exist_ok=True)
 
     mlflow.set_tracking_uri(tracking_uri)
-    client = MlflowClient(tracking_uri=tracking_uri)
+
+    # Protect root logger from being mutated by MLflow/Alembic migrations,
+    # which can attach a StreamHandler(sys.stderr) and cause mutual recursion with Airflow's StreamLogWriter.
+    import logging.config
+
+    root = logging.getLogger()
+    pre_handlers = list(root.handlers)
+    orig_file_config = getattr(logging.config, "fileConfig", None)
+    if orig_file_config is not None:
+        logging.config.fileConfig = lambda *args, **kwargs: None
+    try:
+        client = MlflowClient(tracking_uri=tracking_uri)
+    finally:
+        if orig_file_config is not None:
+            logging.config.fileConfig = orig_file_config
+        for h in list(root.handlers):
+            if h not in pre_handlers:
+                root.removeHandler(h)
+
     experiment = client.get_experiment_by_name(experiment_name)
 
     if experiment is None:
@@ -467,6 +481,10 @@ def train_and_benchmark(
 
 def main() -> None:
     """CLI entrypoint for python -m src.training.train."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     print("=" * 70)
     print("Milestone 4 — Model Training, Benchmarking & MLflow Registry")
     print("=" * 70)

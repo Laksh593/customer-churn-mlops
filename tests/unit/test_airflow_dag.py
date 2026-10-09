@@ -123,7 +123,7 @@ def test_training_task_invocation_without_training_or_mlflow_mutation() -> None:
     )
 
     with patch(
-        "dags.churn_training_dag.train_and_benchmark",
+        "dags.churn_training_dag.run_training_and_benchmark",
         return_value=(
             {"xgboost": mock_pipeline},
             mock_val_df,
@@ -138,3 +138,46 @@ def test_training_task_invocation_without_training_or_mlflow_mutation() -> None:
         assert result["best_model_name"] == "xgboost"
         assert result["best_validation_roc_auc"] == 0.852
         assert result["test_roc_auc"] == 0.855
+
+
+def test_regression_operator_does_not_shadow_training_callable() -> None:
+    """Regression test: verify train_and_benchmark_task invokes run_training_and_benchmark without shadowing.
+
+    Ensures the PythonOperator object assigned to `train_and_benchmark` does not
+    shadow the training callable, preventing 'TypeError: PythonOperator object is not callable'.
+    """
+    import dags.churn_training_dag as dag_module
+
+    # Confirm the module has the operator instance under train_and_benchmark
+    assert not callable(dag_module.train_and_benchmark) or hasattr(
+        dag_module.train_and_benchmark, "task_id"
+    )
+    # Confirm the callable function is available under run_training_and_benchmark
+    assert callable(dag_module.run_training_and_benchmark)
+    assert dag_module.run_training_and_benchmark is not dag_module.train_and_benchmark
+
+    mock_pipeline = MagicMock()
+    mock_val_df = pd.DataFrame({"roc_auc": [0.852]}, index=["xgboost"])
+    mock_eval = EvaluationResult(
+        accuracy=0.82,
+        precision=0.68,
+        recall=0.55,
+        f1=0.61,
+        roc_auc=0.855,
+        pr_auc=0.67,
+        confusion_matrix={"tn": 900, "fp": 100, "fn": 90, "tp": 110},
+    )
+
+    with patch.object(
+        dag_module,
+        "run_training_and_benchmark",
+        return_value=(
+            {"xgboost": mock_pipeline},
+            mock_val_df,
+            "xgboost",
+            mock_eval,
+        ),
+    ) as mock_runner:
+        result = dag_module.train_and_benchmark_task()
+        mock_runner.assert_called_once()
+        assert result["status"] == "success"

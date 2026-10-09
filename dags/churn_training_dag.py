@@ -28,7 +28,7 @@ from typing import Any
 
 from src.data.loader import load_raw
 from src.data.validation import validate_raw
-from src.training.train import train_and_benchmark
+from src.training.train import train_and_benchmark as run_training_and_benchmark
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ def train_and_benchmark_task() -> dict[str, Any]:
         Summary of the winning candidate model and test evaluation results.
     """
     logger.info("Executing Airflow task 'train_and_benchmark'...")
-    _, val_df, best_model_name, test_result = train_and_benchmark()
+    _, val_df, best_model_name, test_result = run_training_and_benchmark()
 
     summary = {
         "status": "success",
