@@ -9,6 +9,8 @@ or shell environment without touching source code.
 
 from __future__ import annotations
 
+import os
+import sys
 from functools import lru_cache
 from typing import Literal
 
@@ -24,7 +26,11 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            None
+            if ("pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ)
+            else ".env"
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
