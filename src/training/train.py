@@ -24,6 +24,7 @@ Executes:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -88,8 +89,20 @@ def load_training_config(config_path: Path | str | None = None) -> dict[str, Any
                 mlflow_sec = dict(DEFAULT_MLFLOW_CONFIG)
                 mlflow_sec.update(cfg.get("mlflow", {}))
                 config["mlflow"] = mlflow_sec
-                return config
-    logger.warning("Config file %s not found. Using defaults.", path)
+    else:
+        logger.warning("Config file %s not found. Using defaults.", path)
+
+    # Allow environment variable overrides for MLflow settings
+    env_tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
+    if env_tracking_uri:
+        config["mlflow"]["tracking_uri"] = env_tracking_uri
+    env_artifact_location = os.environ.get("MLFLOW_ARTIFACT_LOCATION")
+    if env_artifact_location:
+        config["mlflow"]["artifact_location"] = env_artifact_location
+    env_experiment_name = os.environ.get("MLFLOW_EXPERIMENT_NAME")
+    if env_experiment_name:
+        config["mlflow"]["experiment_name"] = env_experiment_name
+
     return config
 
 
@@ -106,11 +119,25 @@ def setup_mlflow(mlflow_config: dict[str, Any]) -> str:
     str
         Experiment ID.
     """
-    tracking_uri = str(mlflow_config.get("tracking_uri", "sqlite:///mlflow.db"))
-    experiment_name = str(
-        mlflow_config.get("experiment_name", "customer-churn-benchmarking")
+    tracking_uri = os.environ.get(
+        "MLFLOW_TRACKING_URI",
+        str(mlflow_config.get("tracking_uri", "sqlite:///mlflow.db")),
     )
-    artifact_location = mlflow_config.get("artifact_location")
+    experiment_name = os.environ.get(
+        "MLFLOW_EXPERIMENT_NAME",
+        str(mlflow_config.get("experiment_name", "customer-churn-benchmarking")),
+    )
+    artifact_location = os.environ.get(
+        "MLFLOW_ARTIFACT_LOCATION",
+        mlflow_config.get("artifact_location"),
+    )
+
+    if tracking_uri.startswith("sqlite:///"):
+        db_path_str = tracking_uri.replace("sqlite:///", "")
+        if db_path_str:
+            db_path = Path(db_path_str)
+            if db_path.parent:
+                db_path.parent.mkdir(parents=True, exist_ok=True)
 
     mlflow.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
@@ -120,6 +147,7 @@ def setup_mlflow(mlflow_config: dict[str, Any]) -> str:
         if artifact_location:
             art_path = Path(artifact_location)
             if art_path.is_absolute():
+                art_path.mkdir(parents=True, exist_ok=True)
                 artifact_uri = art_path.as_uri()
             else:
                 artifact_uri = str(artifact_location)

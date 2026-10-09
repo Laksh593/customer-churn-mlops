@@ -1,0 +1,17 @@
+# Milestone 8: Apache Airflow container image
+FROM apache/airflow:2.10.2-python3.11
+
+USER root
+
+# Create directories for logs and persistent MLflow tracking with airflow permissions
+RUN mkdir -p /opt/airflow/mlflow /opt/airflow/logs \
+    && chown -R airflow:root /opt/airflow/mlflow /opt/airflow/logs
+
+USER airflow
+
+# Install project ML dependencies matching official Airflow 2.10.2 Python 3.11 constraints
+RUN pip install --no-cache-dir --default-timeout 100 \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.2/constraints-3.11.txt" \
+    scikit-learn==1.5.2 \
+    xgboost==2.1.1 \
+    mlflow==2.16.2

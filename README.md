@@ -170,7 +170,8 @@ customer-churn-mlops/
 │   ├── integration/        # Tests requiring live infrastructure
 │   └── api/                # End-to-end API tests
 ├── configs/                # YAML/JSON runtime configs
-├── airflow/dags/           # Airflow DAG definitions
+├── dags/                   # Airflow DAG definitions (churn_training_dag.py)
+├── Dockerfile.airflow      # Apache Airflow container definition
 ├── monitoring/             # Prometheus / Grafana configs
 ├── docker/                 # Dockerfiles
 ├── .github/workflows/      # GitHub Actions CI/CD
@@ -180,6 +181,79 @@ customer-churn-mlops/
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## Apache Airflow Orchestration (Milestone 8)
+
+The project includes an Apache Airflow 2.10.2 orchestration layer running in Docker with `LocalExecutor` and a dedicated PostgreSQL metadata database (`airflow_db`).
+
+### Architecture & Service Summary
+
+- **DAG ID**: `customer_churn_training_pipeline` (`dags/churn_training_dag.py`)
+- **Workflow**:
+  1. `validate_raw_data`: Loads `data/raw/Telco-Customer-Churn.csv` and executes data-quality checks. If unexpected validation errors occur, the task fails and halts execution.
+  2. `train_and_benchmark`: Only runs after validation passes. Executes preprocessing, candidate model training (Logistic Regression, Random Forest, XGBoost), validation benchmarking, test set evaluation, and MLflow model registration.
+- **Triggering & Schedule**: Manual only (`schedule=None`), `catchup=False`, `max_active_runs=1`.
+
+### Starting the Services
+
+```bash
+# Start PostgreSQL, FastAPI, and Airflow services (runs database provisioning automatically)
+docker compose up -d
+
+# Verify all containers are healthy
+docker compose ps
+```
+
+### Accessing the Airflow UI
+
+- **URL**: [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- **Authentication**: Configured via `_AIRFLOW_WWW_USER_USERNAME` and `_AIRFLOW_WWW_USER_PASSWORD` in `.env` (defaults to safe local development credentials `airflow_admin` / `airflow_dev_password`; insecure defaults such as `admin`/`admin` are strictly rejected by the initialization service).
+
+### Dedicated Database Isolation
+
+- **Metadata Storage**: Airflow connects to dedicated database `airflow_db` using isolated role `airflow_user`.
+- **Application Security**: `airflow_user` has zero privileges on application database `churn_db` (CONNECT is explicitly revoked), preventing any cross-database access or leakage.
+- **Application Storage**: FastAPI continues to use dedicated user `churn_user` on `churn_db`.
+
+### Triggering the DAG Manually
+
+- **Via Web UI**: Navigate to `customer_churn_training_pipeline` in the DAGs list and click the **Trigger DAG** button (Play icon).
+- **Via CLI**:
+  ```bash
+  docker compose exec airflow-webserver airflow dags trigger customer_churn_training_pipeline
+  ```
+
+### Dataset Prerequisites
+
+Ensure `data/raw/Telco-Customer-Churn.csv` is present before triggering training:
+```bash
+# Verify raw dataset exists on host
+ls -l data/raw/Telco-Customer-Churn.csv
+```
+The raw dataset directory is mounted read-only into `/opt/airflow/data`.
+
+### Viewing Task Logs & Troubleshooting
+
+- **In the UI**: Click on the active DAG run -> select a task (`validate_raw_data` or `train_and_benchmark`) -> click **Logs**.
+- **In the Terminal**:
+  ```bash
+  # Follow scheduler logs
+  docker compose logs -f airflow-scheduler
+
+  # Follow webserver logs
+  docker compose logs -f airflow-webserver
+  ```
+
+### Isolated MLflow Experiment Tracking
+
+Airflow training runs are strictly isolated from the production FastAPI model store:
+- **Storage Location**: Persistent Docker volume `churn_airflow_mlflow_data` mounted at `/opt/airflow/mlflow`.
+  - SQLite tracking database: `/opt/airflow/mlflow/airflow_mlflow.db`
+  - Artifact storage: `/opt/airflow/mlflow/artifacts`
+- **Why Airflow models do not automatically update the API**:
+  The production FastAPI service serves a pinned, verified model version (`churn-predictor:1`) from its own immutable container image store. New candidate models registered by Airflow into the isolated tracking database require explicit review, benchmarking verification, and promotion before being served by the API. This prevents training race conditions, database file-locking collisions on SQLite, and unintended production deployments.
 
 ---
 
