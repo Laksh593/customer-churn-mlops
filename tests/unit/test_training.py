@@ -19,9 +19,13 @@ Verifies:
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import mlflow
 import numpy as np
 import pandas as pd
 import pytest
+from mlflow.tracking import MlflowClient
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -360,11 +364,16 @@ class TestTrainingConfig:
     """Tests for configs/training.yaml."""
 
     def test_load_training_config_reads_yaml(self) -> None:
-        """Config loader parses configs/training.yaml."""
+        """Config loader parses configs/training.yaml including mlflow."""
         cfg = load_training_config()
         assert isinstance(cfg, dict)
         assert "random_state" in cfg
         assert "validation_metric" in cfg
+        assert "mlflow" in cfg
+        assert "experiment_name" in cfg["mlflow"]
+        assert "tracking_uri" in cfg["mlflow"]
+        assert "artifact_location" in cfg["mlflow"]
+        assert "registered_model_name" in cfg["mlflow"]
         assert "models" in cfg
         assert "logistic_regression" in cfg["models"]
         assert "random_forest" in cfg["models"]
@@ -403,3 +412,103 @@ class TestValidationHandling:
 
         with pytest.raises(ValueError, match="validation failed"):
             train_mod.prepare_data()
+
+
+class TestMLflowTracking:
+    """Tests for Milestone 4 MLflow experiment tracking and model registry."""
+
+    def test_setup_mlflow_creates_experiment(self, tmp_path: Path) -> None:
+        """setup_mlflow configures tracking URI and initializes experiment."""
+        from src.training.train import setup_mlflow
+
+        db_path = tmp_path / "setup_test.db"
+        cfg = {
+            "tracking_uri": f"sqlite:///{db_path}",
+            "experiment_name": "unit-test-exp",
+            "artifact_location": str(tmp_path / "artifacts"),
+        }
+        exp_id = setup_mlflow(cfg)
+        assert exp_id is not None
+        assert isinstance(exp_id, str)
+
+    def test_experiment_creation_and_candidate_runs(self, tmp_path: Path) -> None:
+        """Full pipeline tracks 3 candidate runs, logs metrics, and registers only winner."""
+        from src.training.train import train_and_benchmark
+
+        db_path = tmp_path / "test_mlflow.db"
+        art_path = tmp_path / "artifacts"
+        tracking_uri = f"sqlite:///{db_path}"
+        exp_name = "test-churn-benchmarking"
+        model_name = "test-churn-predictor"
+
+        config_override = {
+            "mlflow": {
+                "experiment_name": exp_name,
+                "tracking_uri": tracking_uri,
+                "artifact_location": str(art_path),
+                "registered_model_name": model_name,
+            }
+        }
+
+        pipelines, val_df, best_model, test_res = train_and_benchmark(
+            config_override=config_override
+        )
+
+        client = MlflowClient(tracking_uri=tracking_uri)
+        exp = client.get_experiment_by_name(exp_name)
+        assert exp is not None, "Experiment was not created"
+
+        runs = client.search_runs(experiment_ids=[exp.experiment_id])
+        assert len(runs) == 3, f"Expected 3 candidate runs, found {len(runs)}"
+
+        run_names = {r.data.tags.get("model_name") for r in runs}
+        assert run_names == {"logistic_regression", "random_forest", "xgboost"}
+
+        required_val_metrics = {
+            "validation_accuracy",
+            "validation_precision",
+            "validation_recall",
+            "validation_f1",
+            "validation_roc_auc",
+            "validation_pr_auc",
+        }
+        for run in runs:
+            metrics = run.data.metrics
+            assert required_val_metrics.issubset(
+                metrics.keys()
+            ), f"Missing validation metrics in run {run.data.tags.get('model_name')}"
+            assert "random_state" in run.data.params
+
+        # Verify only winner run has test metrics and is_best_model tag
+        winner_runs = [r for r in runs if r.data.tags.get("model_name") == best_model]
+        assert len(winner_runs) == 1
+        winner_run = winner_runs[0]
+        assert winner_run.data.tags.get("is_best_model") == "true"
+        assert "test_roc_auc" in winner_run.data.metrics
+        assert "test_pr_auc" in winner_run.data.metrics
+
+        non_winner_runs = [
+            r for r in runs if r.data.tags.get("model_name") != best_model
+        ]
+        for nw in non_winner_runs:
+            assert "is_best_model" not in nw.data.tags
+            assert "test_roc_auc" not in nw.data.metrics
+
+        # Verify model registry has only the selected model
+        reg_models = client.search_registered_models()
+        assert len(reg_models) == 1
+        assert reg_models[0].name == model_name
+
+        versions = client.search_model_versions(f"name='{model_name}'")
+        assert len(versions) == 1
+        mv = versions[0]
+        assert mv.status == "READY"
+        assert mv.run_id == winner_run.info.run_id
+
+        # Verify registered model artifact can be loaded and contains preprocessor + model
+        loaded_pipeline = mlflow.sklearn.load_model(
+            f"models:/{model_name}/{mv.version}"
+        )
+        assert isinstance(loaded_pipeline, Pipeline)
+        assert "preprocessor" in loaded_pipeline.named_steps
+        assert "model" in loaded_pipeline.named_steps

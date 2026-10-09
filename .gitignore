@@ -49,6 +49,9 @@ dmypy.json
 # ── ML / MLflow ───────────────────────────────────────────────────────────────
 mlruns/
 mlartifacts/
+mlflow.db
+*.db
+*.sqlite
 *.pkl
 *.joblib
 *.pt

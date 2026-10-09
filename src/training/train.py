@@ -1,32 +1,37 @@
 """
 src/training/train.py
 ─────────────────────
-End-to-end training and benchmarking pipeline for Milestone 3.
+End-to-end training, benchmarking, and MLflow tracking pipeline (Milestone 4).
 
 Executes:
 1. Load raw data.
-2. Validate raw data.
+2. Validate raw data (log warnings for known pre-cleaning TotalCharges issue).
 3. Clean raw data.
-4. Engineer features.
-5. Split data into train (70%), validation (15%), test (15%).
-6. Separate features X and target y, strictly excluding customerID and Churn from X.
-7. Build candidate pipelines (Logistic Regression, Random Forest, XGBoost).
-8. Train each pipeline on training data only.
-9. Evaluate each model on validation data.
-10. Generate comparison table.
-11. Select best model based on validation ROC-AUC.
-12. Evaluate the selected model ONCE on the untouched test set.
-13. Print a concise final benchmarking report.
+4. Validate cleaned data with raise_on_failure().
+5. Engineer features.
+6. Split data into train (70%), validation (15%), test (15%).
+7. Separate features X and target y, strictly excluding customerID and Churn from X.
+8. Build candidate pipelines (Logistic Regression, Random Forest, XGBoost).
+9. Train each pipeline on training data only.
+10. Evaluate each candidate on validation data.
+11. Log candidate runs to MLflow with parameters, validation metrics, and fitted pipeline.
+12. Generate comparison table and select winner based on validation ROC-AUC.
+13. Evaluate the winner ONCE on untouched test set and log test metrics to its MLflow run.
+14. Register the winning pipeline into the MLflow Model Registry under the configured name.
+15. Print a concise final benchmarking report.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
+import mlflow
 import pandas as pd
 import yaml
+from mlflow.tracking import MlflowClient
 
 from src.data.cleaning import clean_raw
 from src.data.constants import CUSTOMER_ID_COL, RANDOM_STATE, TARGET_COL
@@ -47,6 +52,13 @@ DEFAULT_CONFIG_PATH: Path = (
     Path(__file__).resolve().parent.parent.parent / "configs" / "training.yaml"
 )
 
+DEFAULT_MLFLOW_CONFIG: dict[str, str] = {
+    "experiment_name": "customer-churn-benchmarking",
+    "tracking_uri": "sqlite:///mlflow.db",
+    "artifact_location": "mlartifacts",
+    "registered_model_name": "churn-predictor",
+}
+
 
 def load_training_config(config_path: Path | str | None = None) -> dict[str, Any]:
     """Load training configuration YAML file with fallback to defaults.
@@ -61,17 +73,73 @@ def load_training_config(config_path: Path | str | None = None) -> dict[str, Any
     dict[str, Any]
     """
     path = Path(config_path) if config_path is not None else DEFAULT_CONFIG_PATH
+    config: dict[str, Any] = {
+        "random_state": RANDOM_STATE,
+        "validation_metric": "roc_auc",
+        "mlflow": dict(DEFAULT_MLFLOW_CONFIG),
+        "models": {},
+    }
     if path.is_file():
         with open(path, encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
             if isinstance(cfg, dict):
-                return cfg
+                config.update(cfg)
+                # Ensure mlflow section has all default keys if partial
+                mlflow_sec = dict(DEFAULT_MLFLOW_CONFIG)
+                mlflow_sec.update(cfg.get("mlflow", {}))
+                config["mlflow"] = mlflow_sec
+                return config
     logger.warning("Config file %s not found. Using defaults.", path)
-    return {
-        "random_state": RANDOM_STATE,
-        "validation_metric": "roc_auc",
-        "models": {},
-    }
+    return config
+
+
+def setup_mlflow(mlflow_config: dict[str, Any]) -> str:
+    """Configure MLflow tracking URI and ensure the experiment exists.
+
+    Parameters
+    ----------
+    mlflow_config:
+        Dictionary containing tracking_uri, experiment_name, artifact_location.
+
+    Returns
+    -------
+    str
+        Experiment ID.
+    """
+    tracking_uri = str(mlflow_config.get("tracking_uri", "sqlite:///mlflow.db"))
+    experiment_name = str(
+        mlflow_config.get("experiment_name", "customer-churn-benchmarking")
+    )
+    artifact_location = mlflow_config.get("artifact_location")
+
+    mlflow.set_tracking_uri(tracking_uri)
+    client = MlflowClient(tracking_uri=tracking_uri)
+    experiment = client.get_experiment_by_name(experiment_name)
+
+    if experiment is None:
+        if artifact_location:
+            art_path = Path(artifact_location)
+            if art_path.is_absolute():
+                artifact_uri = art_path.as_uri()
+            else:
+                artifact_uri = str(artifact_location)
+            exp_id = client.create_experiment(
+                name=experiment_name,
+                artifact_location=artifact_uri,
+            )
+        else:
+            exp_id = client.create_experiment(name=experiment_name)
+    else:
+        exp_id = experiment.experiment_id
+
+    mlflow.set_experiment(experiment_name)
+    logger.info(
+        "MLflow initialized: URI='%s', experiment='%s' (id=%s)",
+        tracking_uri,
+        experiment_name,
+        exp_id,
+    )
+    return exp_id
 
 
 def prepare_data(
@@ -174,13 +242,16 @@ def prepare_data(
 
 def train_and_benchmark(
     config_path: Path | str | None = None,
+    config_override: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame, str, EvaluationResult]:
-    """Execute model training, validation benchmarking, and final test evaluation.
+    """Execute model training, validation benchmarking, and MLflow tracking.
 
     Parameters
     ----------
     config_path:
         Optional path to training configuration YAML.
+    config_override:
+        Optional dictionary of overrides for config settings (useful for tests).
 
     Returns
     -------
@@ -191,9 +262,24 @@ def train_and_benchmark(
         - test_result: EvaluationResult
     """
     config = load_training_config(config_path)
+    if config_override:
+        config.update(config_override)
+        if "mlflow" in config_override:
+            config["mlflow"] = {
+                **load_training_config(config_path).get("mlflow", {}),
+                **config_override["mlflow"],
+            }
+
     random_state = int(config.get("random_state", RANDOM_STATE))
     model_configs = config.get("models", {})
     metric_to_select = str(config.get("validation_metric", "roc_auc"))
+    mlflow_cfg = config.get("mlflow", DEFAULT_MLFLOW_CONFIG)
+    registered_model_name = str(
+        mlflow_cfg.get("registered_model_name", "churn-predictor")
+    )
+
+    # Initialize MLflow experiment tracking
+    setup_mlflow(mlflow_cfg)
 
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data(
         random_state=random_state
@@ -202,14 +288,59 @@ def train_and_benchmark(
     logger.info("Step 7: Building candidate model pipelines...")
     pipelines = create_model_pipelines(random_state=random_state, config=model_configs)
 
-    logger.info("Step 8: Training candidate models on X_train only...")
+    logger.info(
+        "Step 8: Training candidate models and logging validation runs to MLflow..."
+    )
     val_results: dict[str, EvaluationResult] = {}
+    candidate_run_ids: dict[str, str] = {}
+
     for name, pipe in pipelines.items():
         logger.info("Training pipeline '%s'...", name)
         pipe.fit(X_train, y_train)
+
         logger.info("Evaluating '%s' on validation set...", name)
-        val_results[name] = evaluate_model(pipe, X_val, y_val)
-        logger.info("  %s -> %s", name, val_results[name].summary())
+        val_res = evaluate_model(pipe, X_val, y_val)
+        val_results[name] = val_res
+        logger.info("  %s -> %s", name, val_res.summary())
+
+        # Start dedicated MLflow run for candidate model
+        with mlflow.start_run(run_name=name) as run:
+            run_id = run.info.run_id
+            candidate_run_ids[name] = run_id
+
+            # Run tags
+            mlflow.set_tags(
+                {
+                    "project": "customer-churn-mlops",
+                    "model_name": name,
+                    "stage": "validation",
+                }
+            )
+
+            # Hyperparameters
+            params: dict[str, Any] = {"random_state": random_state}
+            params.update(model_configs.get(name, {}))
+            mlflow.log_params(params)
+
+            # Validation metrics
+            mlflow.log_metrics(
+                {
+                    "validation_accuracy": val_res.accuracy,
+                    "validation_precision": val_res.precision,
+                    "validation_recall": val_res.recall,
+                    "validation_f1": val_res.f1,
+                    "validation_roc_auc": val_res.roc_auc,
+                    "validation_pr_auc": val_res.pr_auc,
+                }
+            )
+
+            # Log fitted Scikit-learn pipeline (preprocessor + model) as artifact
+            mlflow.sklearn.log_model(
+                sk_model=pipe,
+                artifact_path="model",
+                input_example=X_train.head(5),
+            )
+            logger.info("  Logged MLflow run for '%s' (run_id: %s)", name, run_id)
 
     logger.info("Step 9: Benchmarking validation performance...")
     val_df = compare_models(val_results)
@@ -219,19 +350,89 @@ def train_and_benchmark(
     )
     best_model_name = str(val_df[metric_to_select].idxmax())
     best_val_score = float(val_df.loc[best_model_name, metric_to_select])
+    winner_run_id = candidate_run_ids[best_model_name]
+    best_pipeline = pipelines[best_model_name]
+
     logger.info(
-        "Winner: '%s' with validation %s = %.4f",
+        "Winner: '%s' with validation %s = %.4f (run_id: %s)",
         best_model_name,
         metric_to_select,
         best_val_score,
+        winner_run_id,
     )
 
     logger.info(
         "Step 11: Evaluating winner '%s' ONCE on untouched test set...", best_model_name
     )
-    best_pipeline = pipelines[best_model_name]
     test_result = evaluate_model(best_pipeline, X_test, y_test)
     logger.info("Final Test Performance: %s", test_result.summary())
+
+    # Log test metrics and selection tag into the winning model's MLflow run
+    with mlflow.start_run(run_id=winner_run_id):
+        mlflow.set_tags(
+            {
+                "is_best_model": "true",
+                "selection_metric": metric_to_select,
+                "selection_metric_value": str(round(best_val_score, 4)),
+            }
+        )
+        mlflow.log_metrics(
+            {
+                "test_accuracy": test_result.accuracy,
+                "test_precision": test_result.precision,
+                "test_recall": test_result.recall,
+                "test_f1": test_result.f1,
+                "test_roc_auc": test_result.roc_auc,
+                "test_pr_auc": test_result.pr_auc,
+            }
+        )
+
+    # Step 12: Register the selected model in the MLflow Model Registry
+    logger.info(
+        "Step 12: Registering winner '%s' into MLflow Model Registry as '%s'...",
+        best_model_name,
+        registered_model_name,
+    )
+    model_uri = f"runs:/{winner_run_id}/model"
+    reg_version = mlflow.register_model(
+        model_uri=model_uri,
+        name=registered_model_name,
+    )
+
+    client = MlflowClient(tracking_uri=mlflow.get_tracking_uri())
+    max_wait_seconds = 30
+    start_time = time.time()
+    while time.time() - start_time < max_wait_seconds:
+        version_details = client.get_model_version(
+            name=registered_model_name,
+            version=reg_version.version,
+        )
+        if version_details.status == "READY":
+            break
+        if version_details.status == "FAILED_REGISTRATION":
+            raise RuntimeError(
+                f"Model registration failed for '{registered_model_name}' version {reg_version.version}"
+            )
+        time.sleep(0.5)
+    else:
+        raise TimeoutError(
+            f"Timed out waiting for model '{registered_model_name}' version {reg_version.version} to become READY"
+        )
+
+    client.update_model_version(
+        name=registered_model_name,
+        version=reg_version.version,
+        description=(
+            f"Winning candidate '{best_model_name}' selected by validation {metric_to_select}="
+            f"{best_val_score:.4f}. Test ROC-AUC={test_result.roc_auc:.4f}. Run ID: {winner_run_id}."
+        ),
+    )
+    logger.info(
+        "Model successfully registered: '%s' version %s (status=%s).",
+        reg_version.name,
+        reg_version.version,
+        version_details.status,
+    )
 
     return pipelines, val_df, best_model_name, test_result
 
@@ -239,12 +440,13 @@ def train_and_benchmark(
 def main() -> None:
     """CLI entrypoint for python -m src.training.train."""
     print("=" * 70)
-    print("Milestone 3 — Model Training & Benchmarking Pipeline")
+    print("Milestone 4 — Model Training, Benchmarking & MLflow Registry")
     print("=" * 70)
 
     _, val_df, best_model_name, test_result = train_and_benchmark()
 
-    print("\n" + "=" * 70)
+    print()
+    print("=" * 70)
     print("VALIDATION BENCHMARK RESULTS")
     print("=" * 70)
     formatted_val = val_df.copy()
@@ -252,14 +454,16 @@ def main() -> None:
         formatted_val[col] = formatted_val[col].map(lambda v: f"{v:.4f}")
     print(formatted_val.to_string())
 
-    print("\n" + "=" * 70)
+    print()
+    print("=" * 70)
     print(f"BEST MODEL SELECTED: {best_model_name}")
     print(
         f"Criterion: Validation ROC-AUC = {val_df.loc[best_model_name, 'roc_auc']:.4f}"
     )
     print("=" * 70)
 
-    print("\n" + "=" * 70)
+    print()
+    print("=" * 70)
     print("FINAL TEST SET EVALUATION (Evaluated ONCE on untouched test set)")
     print("=" * 70)
     test_dict = test_result.to_dict()
@@ -267,7 +471,8 @@ def main() -> None:
         print(f"  {metric:<15}: {score:.4f}")
 
     cm = test_result.confusion_matrix
-    print("\nConfusion Matrix (Test Set):")
+    print()
+    print("Confusion Matrix (Test Set):")
     print(f"  True Negatives  (TN): {cm['tn']}")
     print(f"  False Positives (FP): {cm['fp']}")
     print(f"  False Negatives (FN): {cm['fn']}")
