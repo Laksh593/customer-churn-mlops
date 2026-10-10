@@ -380,17 +380,68 @@ class TestTrainingConfig:
         assert "xgboost" in cfg["models"]
 
 
+def _make_sample_raw_df(n: int = 100) -> pd.DataFrame:
+    """Create a minimal raw DataFrame matching the IBM Telco schema for testing."""
+    rng = np.random.default_rng(42)
+    half = n // 2
+    churn_col = ["No"] * half + ["Yes"] * (n - half)
+
+    df = pd.DataFrame(
+        {
+            "customerID": [f"cust-{i:04d}" for i in range(n)],
+            "gender": rng.choice(["Male", "Female"], n),
+            "SeniorCitizen": rng.integers(0, 2, n),
+            "Partner": rng.choice(["Yes", "No"], n),
+            "Dependents": rng.choice(["Yes", "No"], n),
+            "tenure": rng.integers(0, 73, n),
+            "PhoneService": rng.choice(["Yes", "No"], n),
+            "MultipleLines": rng.choice(["Yes", "No", "No phone service"], n),
+            "InternetService": rng.choice(["DSL", "Fiber optic", "No"], n),
+            "OnlineSecurity": rng.choice(["Yes", "No", "No internet service"], n),
+            "OnlineBackup": rng.choice(["Yes", "No", "No internet service"], n),
+            "DeviceProtection": rng.choice(["Yes", "No", "No internet service"], n),
+            "TechSupport": rng.choice(["Yes", "No", "No internet service"], n),
+            "StreamingTV": rng.choice(["Yes", "No", "No internet service"], n),
+            "StreamingMovies": rng.choice(["Yes", "No", "No internet service"], n),
+            "Contract": rng.choice(["Month-to-month", "One year", "Two year"], n),
+            "PaperlessBilling": rng.choice(["Yes", "No"], n),
+            "PaymentMethod": rng.choice(
+                [
+                    "Electronic check",
+                    "Mailed check",
+                    "Bank transfer (automatic)",
+                    "Credit card (automatic)",
+                ],
+                n,
+            ),
+            "MonthlyCharges": rng.uniform(20.0, 120.0, n).round(2),
+            "TotalCharges": [str(round(v, 2)) for v in rng.uniform(20.0, 8000.0, n)],
+            "Churn": churn_col,
+        }
+    )
+    # Simulate known raw data TotalCharges whitespace for zero-tenure rows
+    df.loc[0, "TotalCharges"] = " "
+    df.loc[0, "tenure"] = 0
+    return df
+
+
+@pytest.fixture()
+def sample_raw_df() -> pd.DataFrame:
+    """Return a minimal raw DataFrame fixture for testing."""
+    return _make_sample_raw_df(n=100)
+
+
 class TestValidationHandling:
     """Tests for raw and cleaned dataset validation in the training pipeline."""
 
-    def test_cleaned_dataset_validation_passes(self) -> None:
+    def test_cleaned_dataset_validation_passes(
+        self, sample_raw_df: pd.DataFrame
+    ) -> None:
         """After clean_raw(), validate_raw() passes and raise_on_failure() succeeds."""
         from src.data.cleaning import clean_raw
-        from src.data.loader import load_raw
         from src.data.validation import validate_raw
 
-        raw_df = load_raw()
-        cleaned_df, _ = clean_raw(raw_df)
+        cleaned_df, _ = clean_raw(sample_raw_df)
         report = validate_raw(cleaned_df)
 
         assert report.passed, f"Cleaned data failed validation: {report.summary()}"
@@ -398,15 +449,13 @@ class TestValidationHandling:
         report.raise_on_failure()
 
     def test_unexpected_raw_validation_failure_raises(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, sample_raw_df: pd.DataFrame
     ) -> None:
         """Unexpected raw validation failures (e.g. missing columns) raise an error."""
         import src.training.train as train_mod
-        from src.data.loader import load_raw
 
-        raw_df = load_raw()
         # Drop a required column to simulate unexpected corruption
-        corrupted_df = raw_df.drop(columns=["MonthlyCharges"])
+        corrupted_df = sample_raw_df.drop(columns=["MonthlyCharges"])
 
         monkeypatch.setattr(train_mod, "load_raw", lambda: corrupted_df)
 
@@ -431,9 +480,17 @@ class TestMLflowTracking:
         assert exp_id is not None
         assert isinstance(exp_id, str)
 
-    def test_experiment_creation_and_candidate_runs(self, tmp_path: Path) -> None:
+    def test_experiment_creation_and_candidate_runs(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_raw_df: pd.DataFrame,
+    ) -> None:
         """Full pipeline tracks 3 candidate runs, logs metrics, and registers only winner."""
+        import src.training.train as train_mod
         from src.training.train import train_and_benchmark
+
+        monkeypatch.setattr(train_mod, "load_raw", lambda: sample_raw_df)
 
         db_path = tmp_path / "test_mlflow.db"
         art_path = tmp_path / "artifacts"
