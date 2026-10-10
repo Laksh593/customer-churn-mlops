@@ -12,6 +12,9 @@ mlflow==2.16.2
 fastapi==0.115.0
 uvicorn[standard]==0.31.0
 
+# ── Monitoring ────────────────────────────────────────────────────────────────
+prometheus-client==0.20.0
+
 # ── Data Validation & Settings ────────────────────────────────────────────────
 pydantic==2.9.2
 pydantic-settings==2.5.2

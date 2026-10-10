@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
+from app.api.routes.metrics import router as metrics_router
 from app.api.routes.predict import router as predict_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -71,3 +72,4 @@ app = FastAPI(
 
 app.include_router(health_router)
 app.include_router(predict_router)
+app.include_router(metrics_router)
