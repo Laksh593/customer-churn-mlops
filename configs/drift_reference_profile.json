@@ -1,0 +1,518 @@
+{
+  "metadata": {
+    "schema_version": "1.0.0",
+    "generated_at": "2026-10-11T11:07:52.067192+00:00",
+    "dataset": "Telco-Customer-Churn.csv",
+    "random_state": 42,
+    "train_ratio": 0.7,
+    "val_ratio": 0.15,
+    "test_ratio": 0.15,
+    "num_train_samples": 4930,
+    "num_val_samples": 1056,
+    "features_split": "train",
+    "prediction_probabilities_split": "validation",
+    "model_name": "churn-predictor",
+    "model_version": "1",
+    "model_type": "Pipeline"
+  },
+  "numerical_features": {
+    "SeniorCitizen": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 0.161055,
+      "std": 0.367619,
+      "min": 0.0,
+      "max": 1.0,
+      "bin_edges": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "proportions": [
+        0.83894523,
+        0.16105477
+      ]
+    },
+    "tenure": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 32.471197,
+      "std": 24.64635,
+      "min": 0.0,
+      "max": 72.0,
+      "bin_edges": [
+        0.0,
+        2.0,
+        6.0,
+        12.0,
+        19.6,
+        29.0,
+        40.0,
+        50.3,
+        61.0,
+        69.0,
+        72.0
+      ],
+      "proportions": [
+        0.12210953,
+        0.08681542,
+        0.10283976,
+        0.08823529,
+        0.10608519,
+        0.10040568,
+        0.09350913,
+        0.10608519,
+        0.09675456,
+        0.09716024
+      ]
+    },
+    "MonthlyCharges": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 64.950081,
+      "std": 30.243674,
+      "min": 18.4,
+      "max": 118.75,
+      "bin_edges": [
+        18.4,
+        20.05,
+        25.1,
+        45.55,
+        58.93,
+        70.575,
+        79.35,
+        85.765,
+        94.45,
+        103.25,
+        118.75
+      ],
+      "proportions": [
+        0.10020284,
+        0.10162272,
+        0.09878296,
+        0.09939148,
+        0.1,
+        0.10081136,
+        0.09918864,
+        0.10040568,
+        0.09979716,
+        0.09979716
+      ]
+    },
+    "TotalCharges": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 2301.797566,
+      "std": 2292.566446,
+      "min": 0.0,
+      "max": 8684.8,
+      "bin_edges": [
+        0.0,
+        84.5,
+        267.35,
+        544.97,
+        929.26,
+        1387.4,
+        2083.01,
+        3218.28,
+        4520.41,
+        6038.965,
+        8684.8
+      ],
+      "proportions": [
+        0.10040568,
+        0.09979716,
+        0.09979716,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ]
+    },
+    "total_services": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 3.74929,
+      "std": 2.113541,
+      "min": 1.0,
+      "max": 8.0,
+      "bin_edges": [
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0
+      ],
+      "proportions": [
+        0.32819473,
+        0.13935091,
+        0.14908722,
+        0.14888438,
+        0.12008114,
+        0.07423935,
+        0.04016227
+      ]
+    },
+    "is_new_customer": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 0.311765,
+      "std": 0.463261,
+      "min": 0.0,
+      "max": 1.0,
+      "bin_edges": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "proportions": [
+        0.68823529,
+        0.31176471
+      ]
+    },
+    "is_month_to_month": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 0.548479,
+      "std": 0.497695,
+      "min": 0.0,
+      "max": 1.0,
+      "bin_edges": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "proportions": [
+        0.4515213,
+        0.5484787
+      ]
+    },
+    "has_online_security": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 0.288641,
+      "std": 0.453177,
+      "min": 0.0,
+      "max": 1.0,
+      "bin_edges": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "proportions": [
+        0.71135903,
+        0.28864097
+      ]
+    },
+    "has_tech_support": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 0.29432,
+      "std": 0.455783,
+      "min": 0.0,
+      "max": 1.0,
+      "bin_edges": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "proportions": [
+        0.70567951,
+        0.29432049
+      ]
+    },
+    "estimated_annual_charges": {
+      "count": 4930,
+      "missing_count": 0,
+      "mean": 779.400974,
+      "std": 362.924085,
+      "min": 220.8,
+      "max": 1425.0,
+      "bin_edges": [
+        220.8,
+        240.6,
+        301.2,
+        546.6,
+        707.16,
+        846.9,
+        952.2,
+        1029.18,
+        1133.4,
+        1239.0,
+        1425.0
+      ],
+      "proportions": [
+        0.10020284,
+        0.10162272,
+        0.09878296,
+        0.09939148,
+        0.1,
+        0.10081136,
+        0.09918864,
+        0.10040568,
+        0.09979716,
+        0.09979716
+      ]
+    }
+  },
+  "categorical_features": {
+    "gender": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Male",
+        "Female"
+      ],
+      "frequencies": {
+        "Male": 0.50263692,
+        "Female": 0.49736308
+      }
+    },
+    "Partner": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes"
+      ],
+      "frequencies": {
+        "No": 0.5188641,
+        "Yes": 0.4811359
+      }
+    },
+    "Dependents": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes"
+      ],
+      "frequencies": {
+        "No": 0.70243408,
+        "Yes": 0.29756592
+      }
+    },
+    "PhoneService": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Yes",
+        "No"
+      ],
+      "frequencies": {
+        "Yes": 0.89939148,
+        "No": 0.10060852
+      }
+    },
+    "MultipleLines": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No phone service"
+      ],
+      "frequencies": {
+        "No": 0.47606491,
+        "Yes": 0.42332657,
+        "No phone service": 0.10060852
+      }
+    },
+    "InternetService": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Fiber optic",
+        "DSL",
+        "No"
+      ],
+      "frequencies": {
+        "Fiber optic": 0.44158215,
+        "DSL": 0.34178499,
+        "No": 0.21663286
+      }
+    },
+    "OnlineSecurity": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No internet service"
+      ],
+      "frequencies": {
+        "No": 0.49472617,
+        "Yes": 0.28864097,
+        "No internet service": 0.21663286
+      }
+    },
+    "OnlineBackup": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No internet service"
+      ],
+      "frequencies": {
+        "No": 0.43448276,
+        "Yes": 0.34888438,
+        "No internet service": 0.21663286
+      }
+    },
+    "DeviceProtection": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No internet service"
+      ],
+      "frequencies": {
+        "No": 0.43407708,
+        "Yes": 0.34929006,
+        "No internet service": 0.21663286
+      }
+    },
+    "TechSupport": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No internet service"
+      ],
+      "frequencies": {
+        "No": 0.48904665,
+        "Yes": 0.29432049,
+        "No internet service": 0.21663286
+      }
+    },
+    "StreamingTV": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Yes",
+        "No",
+        "No internet service"
+      ],
+      "frequencies": {
+        "Yes": 0.39371197,
+        "No": 0.38965517,
+        "No internet service": 0.21663286
+      }
+    },
+    "StreamingMovies": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "No",
+        "Yes",
+        "No internet service"
+      ],
+      "frequencies": {
+        "No": 0.39168357,
+        "Yes": 0.39168357,
+        "No internet service": 0.21663286
+      }
+    },
+    "Contract": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Month-to-month",
+        "Two year",
+        "One year"
+      ],
+      "frequencies": {
+        "Month-to-month": 0.5484787,
+        "Two year": 0.24178499,
+        "One year": 0.20973631
+      }
+    },
+    "PaperlessBilling": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Yes",
+        "No"
+      ],
+      "frequencies": {
+        "Yes": 0.59229209,
+        "No": 0.40770791
+      }
+    },
+    "PaymentMethod": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Electronic check",
+        "Mailed check",
+        "Bank transfer (automatic)",
+        "Credit card (automatic)"
+      ],
+      "frequencies": {
+        "Electronic check": 0.33549696,
+        "Mailed check": 0.22778905,
+        "Bank transfer (automatic)": 0.22028398,
+        "Credit card (automatic)": 0.21643002
+      }
+    },
+    "tenure_group": {
+      "count": 4930,
+      "missing_count": 0,
+      "categories": [
+        "Loyal",
+        "New",
+        "Established",
+        "Developing"
+      ],
+      "frequencies": {
+        "Loyal": 0.31805274,
+        "New": 0.31176471,
+        "Established": 0.22677485,
+        "Developing": 0.14340771
+      }
+    }
+  },
+  "prediction_probability": {
+    "evaluation_split": "validation",
+    "count": 1056,
+    "mean": 0.42427,
+    "std": 0.304204,
+    "median": 0.393154,
+    "min": 0.00777,
+    "max": 0.937605,
+    "bin_edges": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "proportions": [
+      0.22348485,
+      0.11174242,
+      0.08617424,
+      0.08901515,
+      0.05492424,
+      0.06818182,
+      0.09469697,
+      0.1155303,
+      0.12689394,
+      0.02935606
+    ]
+  }
+}

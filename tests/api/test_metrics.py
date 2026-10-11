@@ -534,3 +534,64 @@ def test_incompatible_histogram_buckets_rejected() -> None:
         get_or_create_histogram(
             "test_bucket_metric", "doc", buckets=(0.2, 0.5), registry=reg
         )
+
+
+def test_metrics_endpoint_exposes_drift_gauges(
+    client: TestClient,
+    test_db_session: Session,
+    valid_customer_payload: dict[str, Any],
+) -> None:
+    """GET /metrics exposes persistent drift metrics and preserves /predict functionality."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.metrics import reset_drift_sync_cache
+    from app.db.models import DriftMetricsSnapshot
+
+    reset_drift_sync_cache()
+    now = datetime.now(UTC)
+
+    snapshot = DriftMetricsSnapshot(
+        created_at=now,
+        window_start=now - timedelta(days=1),
+        window_end=now,
+        records_evaluated=120,
+        profile_version="1.0.0",
+        model_name="churn-predictor",
+        model_version="1",
+        status="evaluated",
+        num_features_evaluated=1,
+        num_drifted_features=0,
+        prediction_drift_detected=False,
+        prediction_psi=0.035,
+        prediction_p_value=0.45,
+        prediction_status="evaluated",
+        feature_metrics={
+            "tenure": {
+                "status": "evaluated",
+                "test_evaluable": True,
+                "psi": 0.042,
+                "corrected_p_value": 0.38,
+                "drift_detected": False,
+            }
+        },
+        summary_metadata={},
+    )
+    test_db_session.add(snapshot)
+    test_db_session.commit()
+
+    # Query metrics endpoint
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    assert "churn_drift_records_evaluated 120.0" in text
+    assert 'churn_drift_evaluation_status{status="evaluated"} 1.0' in text
+    assert 'churn_prediction_drift_status{status="evaluated"} 1.0' in text
+    assert "churn_prediction_drift_psi 0.035" in text
+    assert 'churn_data_drift_psi{feature="tenure"} 0.042' in text
+    assert 'churn_data_drift_detected{feature="tenure"} 0.0' in text
+
+    # Verify prediction endpoint remains functional
+    pred_res = client.post("/predict", json=valid_customer_payload)
+    assert pred_res.status_code == 200
+    assert pred_res.json()["churn_label"] == "Yes"

@@ -567,15 +567,605 @@
       ],
       "title": "Prediction Errors Rate by Category",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Data Drift & Model Monitoring (Milestone 11)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Overall evaluation status of the latest drift snapshot. Statuses: evaluated, insufficient_samples, preparation_failed, no_snapshot, error. Note: Insufficient samples or sync errors indicate an uncompleted check, not proof of no drift.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "evaluated": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Evaluated"
+                },
+                "insufficient_samples": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Insufficient Samples"
+                },
+                "preparation_failed": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "Prep Failed"
+                },
+                "no_snapshot": {
+                  "color": "semi-dark-blue",
+                  "index": 3,
+                  "text": "No Snapshot"
+                },
+                "error": {
+                  "color": "red",
+                  "index": 4,
+                  "text": "Sync Error"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_drift_evaluation_status == 1",
+          "instant": true,
+          "legendFormat": "{{status}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Drift Snapshot Status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Number of inference prediction records evaluated in the latest evaluation window. A minimum sample threshold of 100 records is required for statistical testing.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 24
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_drift_records_evaluated",
+          "instant": true,
+          "legendFormat": "Evaluated Records",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Records Evaluated (Latest Snapshot)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Time elapsed since the latest completed drift snapshot in PostgreSQL. An evaluation older than 24h indicates an aging or stale monitoring window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 86400
+              },
+              {
+                "color": "red",
+                "value": 172800
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 24
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "time() - churn_drift_last_evaluation_timestamp_seconds",
+          "instant": true,
+          "legendFormat": "Snapshot Age",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Last Drift Evaluation Age",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Population Stability Index (PSI) of model churn prediction probabilities against the validation baseline. PSI >= 0.1 indicates distribution shift. Disclaimer: Indicates distribution change, not proven accuracy loss without ground truth.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 24
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_prediction_drift_psi",
+          "instant": true,
+          "legendFormat": "Prediction Probability PSI",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Prediction Probability PSI",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "PSI per feature compared to training baseline (X_train). Reference thresholds: PSI < 0.1 indicates no significant shift (green), 0.1 <= PSI < 0.2 indicates moderate shift (yellow reference line), PSI >= 0.2 indicates significant covariate shift (red). Disclaimer: Covariate shift reflects input distribution change, not confirmed model degradation without ground truth labels.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "max": 0.35,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 28
+      },
+      "id": 13,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_data_drift_psi",
+          "instant": true,
+          "legendFormat": "{{feature}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Feature Population Stability Index (PSI) - Ref Threshold: 0.1",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Dual-criterion decision: Flagged as Drift Detected (1) ONLY if BOTH PSI >= 0.1 AND Bonferroni-corrected p-value < 0.05. 0 indicates confirmed stability. Non-evaluable or missing features are rendered as NaN/Unevaluable, never as false stability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Stable (No Drift)"
+                },
+                "1": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "DRIFT DETECTED"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "semi-dark-orange",
+                  "index": 2,
+                  "text": "Unevaluable / NaN"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 28
+      },
+      "id": 14,
+      "options": {
+        "displayMode": "basic",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": false
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_data_drift_detected",
+          "instant": true,
+          "legendFormat": "{{feature}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Confirmed Feature Drift Decision (PSI >= 0.1 & p < 0.05)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Per-feature evaluation health breakdown across all 26 model features. Distinguishes fully evaluated features from missing features, insufficient sample sizes, or failed test assumptions. An unevaluable feature is distinct from confirmed stability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "evaluated": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Evaluated"
+                },
+                "insufficient_samples": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Insufficient Samples"
+                },
+                "unevaluable": {
+                  "color": "orange",
+                  "index": 2,
+                  "text": "Unevaluable Assumptions"
+                },
+                "missing_feature": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "Missing Feature"
+                },
+                "preparation_failed": {
+                  "color": "purple",
+                  "index": 4,
+                  "text": "Prep Failed"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 15,
+      "options": {
+        "displayMode": "basic",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": false
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "churn_data_drift_feature_status == 1",
+          "instant": true,
+          "legendFormat": "{{feature}} ({{status}})",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Feature Evaluation Health & Status Breakdown",
+      "type": "bargauge"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": [
-    "mlops",
     "churn",
+    "drift",
     "fastapi",
-    "prometheus"
+    "mlops",
+    "monitoring",
+    "prometheus",
+    "psi"
   ],
   "templating": {
     "list": []
